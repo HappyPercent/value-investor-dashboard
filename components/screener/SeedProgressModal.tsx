@@ -42,22 +42,39 @@ const initialState: SeedState = {
 
 export function SeedProgressModal({ isOpen, onClose, options }: Props) {
   const [state, setState] = useState<SeedState>(initialState);
+  const [forceRefresh, setForceRefresh] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
+  // Reset when modal opens
   useEffect(() => {
-    if (!isOpen) return;
-    setState(initialState);
+    if (isOpen) {
+      setState(initialState);
+      setForceRefresh(false);
+    } else {
+      abortRef.current?.abort();
+    }
+  }, [isOpen]);
+
+  // Auto-scroll log
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [state.log]);
+
+  function startSeed() {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
+    setState((s) => ({ ...s, status: "running" }));
+
     async function run() {
-      setState((s) => ({ ...s, status: "running" }));
       try {
         const res = await fetch("/api/screener/seed", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(options),
+          body: JSON.stringify({ ...options, forceRefresh }),
           signal: ctrl.signal,
         });
 
@@ -96,15 +113,7 @@ export function SeedProgressModal({ isOpen, onClose, options }: Props) {
     }
 
     run();
-    return () => ctrl.abort();
-  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-scroll log
-  useEffect(() => {
-    if (logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
-    }
-  }, [state.log]);
+  }
 
   const pct = state.total > 0 ? (state.processed / state.total) * 100 : 0;
 
@@ -115,11 +124,30 @@ export function SeedProgressModal({ isOpen, onClose, options }: Props) {
           <DialogTitle>
             {state.status === "done" ? "Seed Complete" :
              state.status === "error" ? "Seed Failed" :
-             "Seeding Universe…"}
+             state.status === "running" ? "Seeding Universe…" :
+             "Seed Universe"}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
+          {state.status === "idle" && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Fetch latest fundamentals for all tickers in the selected index.
+              </p>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={forceRefresh}
+                  onChange={(e) => setForceRefresh(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
+                />
+                Force refresh (re-fetch tickers updated within the last 24h)
+              </label>
+              <Button onClick={startSeed} className="w-full">Start Seed</Button>
+            </div>
+          )}
+
           {state.status === "running" && (
             <div className="space-y-2">
               <Progress value={pct} className="h-2" />
@@ -162,7 +190,7 @@ export function SeedProgressModal({ isOpen, onClose, options }: Props) {
             </div>
           )}
 
-          {state.status !== "running" && (
+          {state.status !== "running" && state.status !== "idle" && (
             <Button onClick={onClose} className="w-full">Close</Button>
           )}
         </div>

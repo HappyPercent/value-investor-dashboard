@@ -36,6 +36,7 @@ model ScreenerTicker {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  rawData String? // Store the full raw response for debugging
   @@index([marginOfSafety])
   @@index([index])
 }

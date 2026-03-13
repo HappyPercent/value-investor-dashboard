@@ -16,6 +16,8 @@ import { ExpandedRowDetail } from "./ExpandedRowDetail";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { ScreenerResult } from "@/types/screener";
 
+export type SortKey = keyof Pick<ScreenerResult, "ticker" | "currentPrice" | "grahamNumber" | "marginOfSafety" | "peRatio" | "pbRatio" | "deRatio">;
+
 interface Props {
   results: ScreenerResult[];
   total: number;
@@ -23,34 +25,19 @@ interface Props {
   pageSize: number;
   isLoading: boolean;
   onPageChange: (page: number) => void;
+  sortKey: SortKey;
+  sortAsc: boolean;
+  onSortChange: (key: SortKey) => void;
 }
-
-type SortKey = keyof Pick<ScreenerResult, "ticker" | "currentPrice" | "grahamNumber" | "marginOfSafety" | "peRatio" | "pbRatio" | "deRatio">;
 
 function fmt(n: number | null, prefix = "", suffix = "", decimals = 2) {
   if (n === null) return "—";
   return `${prefix}${n.toFixed(decimals)}${suffix}`;
 }
 
-export function ScreenerTable({ results, total, page, pageSize, isLoading, onPageChange }: Props) {
+export function ScreenerTable({ results, total, page, pageSize, isLoading, onPageChange, sortKey, sortAsc, onSortChange }: Props) {
   const [expandedTicker, setExpandedTicker] = useState<string | null>(null);
   const [aiCache, setAiCache] = useState<Record<string, string>>({});
-  const [sortKey, setSortKey] = useState<SortKey>("marginOfSafety");
-  const [sortAsc, setSortAsc] = useState(false);
-
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) setSortAsc((a) => !a);
-    else { setSortKey(key); setSortAsc(false); }
-  };
-
-  const sorted = [...results].sort((a, b) => {
-    const av = a[sortKey] ?? (sortAsc ? Infinity : -Infinity);
-    const bv = b[sortKey] ?? (sortAsc ? Infinity : -Infinity);
-    if (typeof av === "string" && typeof bv === "string") {
-      return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
-    }
-    return sortAsc ? (av as number) - (bv as number) : (bv as number) - (av as number);
-  });
 
   const SortIcon = ({ col }: { col: SortKey }) =>
     sortKey === col ? (
@@ -102,7 +89,7 @@ export function ScreenerTable({ results, total, page, pageSize, isLoading, onPag
                 <TableHead
                   key={col.label}
                   className={`${col.align ?? ""} whitespace-nowrap ${col.key ? "cursor-pointer hover:text-foreground" : ""}`}
-                  onClick={() => col.key && handleSort(col.key)}
+                  onClick={() => col.key && onSortChange(col.key)}
                 >
                   {col.label}
                   {col.key && <SortIcon col={col.key} />}
@@ -111,7 +98,7 @@ export function ScreenerTable({ results, total, page, pageSize, isLoading, onPag
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sorted.map((result) => (
+            {results.map((result) => (
               <>
                 <TableRow
                   key={result.ticker}

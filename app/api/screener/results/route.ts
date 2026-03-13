@@ -12,6 +12,8 @@ export async function GET(req: Request) {
     deMax:  searchParams.get("deMax")  ? parseFloat(searchParams.get("deMax")!)  : undefined,
     mosMin: searchParams.get("mosMin") ? parseFloat(searchParams.get("mosMin")!) : undefined,
     crMin:  searchParams.get("crMin")  ? parseFloat(searchParams.get("crMin")!)  : undefined,
+    sortBy: searchParams.get("sortBy") as ScreenerFilters["sortBy"] || "marginOfSafety",
+    sortOrder: searchParams.get("sortOrder") as ScreenerFilters["sortOrder"] || "desc",
   };
   const page     = parseInt(searchParams.get("page")     ?? "1",  10);
   const pageSize = parseInt(searchParams.get("pageSize") ?? "50", 10);

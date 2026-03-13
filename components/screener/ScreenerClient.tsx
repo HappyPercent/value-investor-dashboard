@@ -2,14 +2,13 @@
 
 import { useCallback, useState } from "react";
 import { FilterPanel } from "@/components/screener/FilterPanel";
-import { ScreenerTable } from "@/components/screener/ScreenerTable";
+import { ScreenerTable, SortKey } from "@/components/screener/ScreenerTable";
 import { SeedProgressModal } from "@/components/screener/SeedProgressModal";
-import type { ScreenerFilters, ScreenerResultsResponse, SeedOptions } from "@/types/screener";
+import type { ScreenerFilters, ScreenerResult, ScreenerResultsResponse, SeedOptions } from "@/types/screener";
 
 interface Props {
   initialData: ScreenerResultsResponse;
 }
-
 const DEFAULT_FILTERS: ScreenerFilters = { index: "ALL" };
 
 export function ScreenerClient({ initialData }: Props) {
@@ -19,6 +18,8 @@ export function ScreenerClient({ initialData }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [seedModalOpen, setSeedModalOpen] = useState(false);
   const [seedOptions, setSeedOptions] = useState<SeedOptions>({ index: "ALL", forceRefresh: false });
+  const [sortKey, setSortKey] = useState<SortKey>("marginOfSafety");
+  const [sortAsc, setSortAsc] = useState(false);
 
   const fetchResults = useCallback(async (currentFilters: ScreenerFilters, currentPage: number) => {
     setIsLoading(true);
@@ -30,6 +31,8 @@ export function ScreenerClient({ initialData }: Props) {
       if (currentFilters.mosMin != null) params.set("mosMin", String(currentFilters.mosMin));
       if (currentFilters.crMin  != null) params.set("crMin",  String(currentFilters.crMin));
       if (currentFilters.index && currentFilters.index !== "ALL") params.set("index", currentFilters.index);
+      if (currentFilters.sortBy) params.set("sortBy", currentFilters.sortBy);
+      if (currentFilters.sortOrder) params.set("sortOrder", currentFilters.sortOrder);
       params.set("page", String(currentPage));
 
       const res = await fetch(`/api/screener/results?${params}`);
@@ -87,6 +90,13 @@ export function ScreenerClient({ initialData }: Props) {
           pageSize={data.pageSize}
           isLoading={isLoading}
           onPageChange={handlePageChange}
+          sortKey={sortKey}
+          sortAsc={sortAsc}
+          onSortChange={(key) => {
+            if (sortKey === key) setSortAsc((a) => !a);
+            else { setSortKey(key); setSortAsc(false); }
+            handleFiltersChange({ ...filters, sortBy: key, sortOrder: sortAsc ? "asc" : "desc" });
+          }}
         />
       </div>
 

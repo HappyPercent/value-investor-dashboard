@@ -8,7 +8,7 @@ export async function queryScreener(
   pageSize = 50
 ): Promise<ScreenerResultsResponse> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: Record<string, any> = {};
+  const where: Record<string, any> = {companyName: { not: null }}; // Exclude tickers that failed to fetch at all
 
   if (filters.index && filters.index !== "ALL") where.index = filters.index;
   if (filters.peMax != null) where.peRatio = { lte: filters.peMax, not: null };
@@ -24,7 +24,7 @@ export async function queryScreener(
     prisma.screenerTicker.count({ where }),
     prisma.screenerTicker.findMany({
       where,
-      orderBy: { marginOfSafety: "desc" },
+      orderBy: { [filters.sortBy || "marginOfSafety"]: filters.sortOrder || "desc" },
       skip: (clampedPage - 1) * clampedSize,
       take: clampedSize,
     }),

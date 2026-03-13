@@ -61,87 +61,102 @@ export async function seedUniverse(options: {
   const startMs = Date.now();
   let succeeded = 0;
   let failed = 0;
+  let processed = 0;
 
-  for (let i = 0; i < toProcess.length; i++) {
-    const { ticker, idx } = toProcess[i];
-    const callStart = Date.now();
-    let success = false;
+  // Process in concurrent batches of 3, with 200ms between batch starts
+  const CONCURRENCY = 3;
+  const BATCH_DELAY_MS = 200;
 
-    try {
-      const f = await fetchFundamentals(ticker);
-      const grahamNumber = computeGrahamNumber(f.trailingEPS, f.bookValuePerShare);
-      const marginOfSafety = computeMarginOfSafety(grahamNumber, f.currentPrice);
+  for (let i = 0; i < toProcess.length; i += CONCURRENCY) {
+    const batchStart = Date.now();
+    const batch = toProcess.slice(i, i + CONCURRENCY);
 
-      await prisma.screenerTicker.upsert({
-        where: { ticker },
-        create: {
-          ticker,
-          index: idx,
-          companyName: f.companyName,
-          sector: f.sector,
-          industry: f.industry,
-          currentPrice: f.currentPrice,
-          trailingEPS: f.trailingEPS,
-          bookValuePerShare: f.bookValuePerShare,
-          peRatio: f.peRatio,
-          pbRatio: f.pbRatio,
-          deRatio: f.deRatio,
-          currentRatio: f.currentRatio,
-          dividendYield: f.dividendYield,
-          marketCap: f.marketCap,
-          grahamNumber,
-          marginOfSafety,
-          fetchedAt: new Date(),
-          fetchError: null,
-        },
-        update: {
-          index: idx,
-          companyName: f.companyName,
-          sector: f.sector,
-          industry: f.industry,
-          currentPrice: f.currentPrice,
-          trailingEPS: f.trailingEPS,
-          bookValuePerShare: f.bookValuePerShare,
-          peRatio: f.peRatio,
-          pbRatio: f.pbRatio,
-          deRatio: f.deRatio,
-          currentRatio: f.currentRatio,
-          dividendYield: f.dividendYield,
-          marketCap: f.marketCap,
-          grahamNumber,
-          marginOfSafety,
-          fetchedAt: new Date(),
-          fetchError: null,
-        },
+    const processTicker = async ({ ticker, idx }: { ticker: string; idx: string }) => {
+      let success = false;
+      try {
+        const f = await fetchFundamentals(ticker);
+        const grahamNumber = computeGrahamNumber(f.trailingEPS, f.bookValuePerShare);
+        const marginOfSafety = computeMarginOfSafety(grahamNumber, f.currentPrice);
+
+        await prisma.screenerTicker.upsert({
+          where: { ticker },
+          create: {
+            ticker,
+            index: idx,
+            companyName: f.companyName,
+            sector: f.sector,
+            industry: f.industry,
+            currentPrice: f.currentPrice,
+            trailingEPS: f.trailingEPS,
+            bookValuePerShare: f.bookValuePerShare,
+            peRatio: f.peRatio,
+            pbRatio: f.pbRatio,
+            deRatio: f.deRatio,
+            currentRatio: f.currentRatio,
+            dividendYield: f.dividendYield,
+            marketCap: f.marketCap,
+            grahamNumber,
+            marginOfSafety,
+            fetchedAt: new Date(),
+            fetchError: null,
+            rawData: f.rawData,
+          },
+          update: {
+            index: idx,
+            companyName: f.companyName,
+            sector: f.sector,
+            industry: f.industry,
+            currentPrice: f.currentPrice,
+            trailingEPS: f.trailingEPS,
+            bookValuePerShare: f.bookValuePerShare,
+            peRatio: f.peRatio,
+            pbRatio: f.pbRatio,
+            deRatio: f.deRatio,
+            currentRatio: f.currentRatio,
+            dividendYield: f.dividendYield,
+            marketCap: f.marketCap,
+            grahamNumber,
+            marginOfSafety,
+            fetchedAt: new Date(),
+            fetchError: null,
+            rawData: f.rawData,
+          },
+        });
+        succeeded++;
+        success = true;
+      } catch (e) {
+        await prisma.screenerTicker.upsert({
+          where: { ticker },
+          create: { ticker, index: idx, fetchError: String(e) },
+          update: { fetchError: String(e), fetchedAt: new Date() },
+        });
+        failed++;
+      }
+      return { ticker, success };
+    };
+
+    const batchResults = await Promise.all(batch.map(processTicker));
+
+    for (const { ticker, success } of batchResults) {
+      processed++;
+      await onProgress({
+        type: "ticker_done",
+        ticker,
+        success,
+        processed,
+        total: toProcess.length,
       });
-      succeeded++;
-      success = true;
-    } catch (e) {
-      await prisma.screenerTicker.upsert({
-        where: { ticker },
-        create: { ticker, index: idx, fetchError: String(e) },
-        update: { fetchError: String(e), fetchedAt: new Date() },
-      });
-      failed++;
     }
 
     await prisma.seedJob.update({
       where: { id: job.id },
-      data: { processed: i + 1, succeeded, failed },
+      data: { processed, succeeded, failed },
     });
 
-    await onProgress({
-      type: "ticker_done",
-      ticker,
-      success,
-      processed: i + 1,
-      total: toProcess.length,
-    });
-
-    // Rate limit: 500ms from start of call
-    const elapsed = Date.now() - callStart;
-    const remaining = 500 - elapsed;
-    if (remaining > 0 && i < toProcess.length - 1) await delay(remaining);
+    // Rate limit: wait remaining time to reach BATCH_DELAY_MS from batch start
+    const elapsed = Date.now() - batchStart;
+    const remaining = BATCH_DELAY_MS - elapsed;
+    if (remaining > 0 && i + CONCURRENCY < toProcess.length) await delay(remaining);
   }
 
   const durationMs = Date.now() - startMs;

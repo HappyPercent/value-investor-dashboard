@@ -12,4 +12,5 @@ export interface YahooFundamentals {
   currentRatio: number | null;
   dividendYield: number | null;
   nextEarningsDate: Date | null;
+  rawData?: string; // Store raw response for debugging
 }

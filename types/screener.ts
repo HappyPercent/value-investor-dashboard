@@ -24,6 +24,8 @@ export interface ScreenerFilters {
   mosMin?: number;   // 0-100 percent
   crMin?: number;
   index?: "SP500" | "RUSSELL2000" | "ALL";
+  sortBy?: "marginOfSafety" | "peRatio" | "pbRatio" | "deRatio" | "currentRatio" | "dividendYield" | "currentPrice" | "grahamNumber" | "ticker";
+  sortOrder?: "asc" | "desc";
 }
 
 export interface ScreenerResultsResponse {
