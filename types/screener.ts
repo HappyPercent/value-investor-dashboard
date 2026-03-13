@@ -1,0 +1,47 @@
+export interface ScreenerResult {
+  ticker: string;
+  index: string;
+  companyName: string | null;
+  sector: string | null;
+  industry: string | null;
+  currentPrice: number | null;
+  grahamNumber: number | null;
+  marginOfSafety: number | null;
+  peRatio: number | null;
+  pbRatio: number | null;
+  deRatio: number | null;
+  currentRatio: number | null;
+  dividendYield: number | null;
+  marketCap: number | null;
+  fetchedAt: string | null;
+  fetchError: string | null;
+}
+
+export interface ScreenerFilters {
+  peMax?: number;
+  pbMax?: number;
+  deMax?: number;
+  mosMin?: number;   // 0-100 percent
+  crMin?: number;
+  index?: "SP500" | "RUSSELL2000" | "ALL";
+}
+
+export interface ScreenerResultsResponse {
+  results: ScreenerResult[];
+  total: number;
+  page: number;
+  pageSize: number;
+  lastSeededAt: string | null;
+  staleTickers: number;
+}
+
+export interface SeedOptions {
+  index?: "SP500" | "RUSSELL2000" | "ALL";
+  forceRefresh?: boolean;
+}
+
+export type SeedProgressEvent =
+  | { type: "seed_start"; jobId: number; total: number }
+  | { type: "ticker_done"; ticker: string; success: boolean; processed: number; total: number }
+  | { type: "seed_complete"; jobId: number; succeeded: number; failed: number; durationMs: number }
+  | { type: "error"; message: string };

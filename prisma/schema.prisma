@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ── Screener universe cache ──────────────────────────────────────────────────
+
+model ScreenerTicker {
+  id     Int    @id @default(autoincrement())
+  ticker String @unique
+  index  String // "SP500" | "RUSSELL2000"
+
+  companyName       String?
+  sector            String?
+  industry          String?
+  currentPrice      Float?
+  trailingEPS       Float?
+  bookValuePerShare Float?
+  peRatio           Float?
+  pbRatio           Float?
+  deRatio           Float?
+  currentRatio      Float?
+  dividendYield     Float?
+  marketCap         Float?
+
+  grahamNumber   Float?
+  marginOfSafety Float?
+
+  fetchedAt  DateTime?
+  fetchError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([marginOfSafety])
+  @@index([index])
+}
+
+// ── Portfolio sessions ───────────────────────────────────────────────────────
+
+model PortfolioSession {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  source    String   // "csv" | "manual"
+
+  positions PortfolioPosition[]
+}
+
+model PortfolioPosition {
+  id        Int    @id @default(autoincrement())
+  sessionId String
+  session   PortfolioSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  ticker    String
+  shares    Float
+  costBasis Float
+
+  companyName       String?
+  sector            String?
+  industry          String?
+  currentPrice      Float?
+  trailingEPS       Float?
+  bookValuePerShare Float?
+  peRatio           Float?
+  pbRatio           Float?
+  deRatio           Float?
+  currentRatio      Float?
+  dividendYield     Float?
+  marketCap         Float?
+  nextEarningsDate  DateTime?
+
+  grahamNumber   Float?
+  marginOfSafety Float?
+  currentValue   Float?
+  gainLoss       Float?
+  gainLossPct    Float?
+
+  fetchedAt  DateTime?
+  fetchError String?
+
+  @@index([sessionId])
+}
+
+// ── Seed job audit log ───────────────────────────────────────────────────────
+
+model SeedJob {
+  id          Int       @id @default(autoincrement())
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  status      String    // "running" | "completed" | "failed"
+  totalTickers Int
+  processed   Int       @default(0)
+  succeeded   Int       @default(0)
+  failed      Int       @default(0)
+  errorLog    String?
+}
