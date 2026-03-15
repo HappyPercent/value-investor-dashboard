@@ -3,7 +3,76 @@ import { prisma } from "@/lib/prisma";
 import { fetchFundamentals } from "@/lib/yahoo";
 import { computeGrahamNumber, computeMarginOfSafety } from "@/lib/graham";
 import { delay } from "@/lib/rate-limiter";
-import type { PortfolioAnalyzeRequest, PortfolioAnalyzeResponse, EnrichedPosition } from "@/types/portfolio";
+import type { PortfolioAnalyzeRequest, PortfolioAnalyzeResponse, EnrichedPosition, PortfolioSummary } from "@/types/portfolio";
+
+// GET /api/portfolio/analyze?sessionId=xxx — restore a session from DB
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const sessionId = searchParams.get("sessionId");
+
+  if (!sessionId) {
+    return NextResponse.json({ error: "sessionId is required" }, { status: 400 });
+  }
+
+  const session = await prisma.portfolioSession.findUnique({
+    where: { id: sessionId },
+    include: { positions: { orderBy: { id: "asc" } } },
+  });
+
+  if (!session) {
+    return NextResponse.json(null);
+  }
+
+  const positions: EnrichedPosition[] = session.positions.map((p) => ({
+    id: p.id,
+    sessionId: p.sessionId,
+    ticker: p.ticker,
+    shares: p.shares,
+    costBasis: p.costBasis,
+    companyName: p.companyName,
+    sector: p.sector,
+    industry: p.industry,
+    currentPrice: p.currentPrice,
+    trailingEPS: p.trailingEPS,
+    bookValuePerShare: p.bookValuePerShare,
+    peRatio: p.peRatio,
+    pbRatio: p.pbRatio,
+    deRatio: p.deRatio,
+    currentRatio: p.currentRatio,
+    dividendYield: p.dividendYield,
+    marketCap: p.marketCap,
+    nextEarningsDate: p.nextEarningsDate?.toISOString() ?? null,
+    grahamNumber: p.grahamNumber,
+    marginOfSafety: p.marginOfSafety,
+    currentValue: p.currentValue,
+    gainLoss: p.gainLoss,
+    gainLossPct: p.gainLossPct,
+    fetchedAt: p.fetchedAt?.toISOString() ?? null,
+    fetchError: p.fetchError,
+  }));
+
+  const totalValue = positions.reduce((s, p) => s + (p.currentValue ?? 0), 0);
+  const totalCostBasis = positions.reduce((s, p) => s + p.costBasis * p.shares, 0);
+  const totalGainLoss = totalValue - totalCostBasis;
+  const totalGainLossPct = totalCostBasis > 0 ? totalGainLoss / totalCostBasis : 0;
+  const mosValues = positions.map((p) => p.marginOfSafety).filter((v): v is number => v !== null);
+  const averageMarginOfSafety = mosValues.length > 0 ? mosValues.reduce((a, b) => a + b, 0) / mosValues.length : null;
+  const fetchErrors = positions.filter((p) => p.fetchError).map((p) => p.ticker);
+
+  const summary: PortfolioSummary = {
+    totalValue,
+    totalCostBasis,
+    totalGainLoss,
+    totalGainLossPct,
+    averageMarginOfSafety,
+    undervaluedCount: positions.filter((p) => p.marginOfSafety !== null && p.marginOfSafety >= 0).length,
+    overvaluedCount: positions.filter((p) => p.marginOfSafety !== null && p.marginOfSafety < 0).length,
+    naCount: positions.filter((p) => p.marginOfSafety === null).length,
+    fetchErrors,
+  };
+
+  return NextResponse.json({ sessionId, positions, summary } satisfies PortfolioAnalyzeResponse);
+}
 
 export async function POST(req: Request) {
   let body: PortfolioAnalyzeRequest;

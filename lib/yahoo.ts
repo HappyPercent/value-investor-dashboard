@@ -51,6 +51,19 @@ export function parseYahooResult(result: Record<string, unknown>): Omit<YahooFun
   };
 }
 
+/** Fetch current EUR/USD exchange rate (how many USD per 1 EUR). Returns null on failure. */
+export async function fetchEurUsdRate(): Promise<number | null> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await yf.quoteSummary("EURUSD=X", { modules: ["price"] as any }, { validateResult: false });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const price = (result as any)?.price?.regularMarketPrice;
+    return typeof price === "number" ? price : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Fetch live data from Yahoo Finance and parse it. */
 export async function fetchFundamentals(ticker: string): Promise<YahooFundamentals> {
   const result = await yf.quoteSummary(

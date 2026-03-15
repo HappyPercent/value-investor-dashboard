@@ -6,7 +6,13 @@ import type { EnrichedPosition } from "@/types/portfolio";
 export const maxDuration = 120; // Vercel / Next.js route timeout
 
 export async function POST(req: Request) {
-  const { sessionId, mode } = await req.json() as { sessionId: string; mode: "portfolio" | "events" };
+  let sessionId: string;
+  let mode: "portfolio" | "events";
+  try {
+    ({ sessionId, mode } = await req.json() as { sessionId: string; mode: "portfolio" | "events" });
+  } catch {
+    return new Response(null, { status: 400 });
+  }
 
   const dbPositions = await prisma.portfolioPosition.findMany({
     where: { sessionId },

@@ -15,6 +15,10 @@ function fmtCurrency(n: number) {
   return fmt(n, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 }
 
+function fmtEur(n: number) {
+  return fmt(n, { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+}
+
 function fmtPct(n: number) {
   return `${(n * 100).toFixed(1)}%`;
 }
@@ -49,7 +53,7 @@ export function PortfolioSummaryHeader({ summary, isLoading }: Props) {
 
   const stats = [
     { label: "Portfolio Value", value: fmtCurrency(summary.totalValue) },
-    { label: "Cost Basis", value: fmtCurrency(summary.totalCostBasis) },
+    { label: "Cost Basis", value: fmtEur(summary.totalCostBasis) },
     {
       label: "Gain / Loss",
       value: `${summary.totalGainLoss >= 0 ? "+" : ""}${fmtCurrency(summary.totalGainLoss)} (${fmtPct(summary.totalGainLossPct)})`,

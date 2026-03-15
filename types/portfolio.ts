@@ -61,3 +61,29 @@ export interface SSEEvent {
   event: string;
   data: unknown;
 }
+
+// ── AI Deep Analysis ──────────────────────────────────────────────────────────
+
+export interface TickerAnalysis {
+  ticker: string;
+  companyName: string;
+  strengths: string[];
+  weaknesses: string[];
+  recentNews: Array<{
+    headline: string;
+    sentiment: "positive" | "negative" | "neutral";
+  }>;
+  upcomingEvents: Array<{
+    date: string;
+    event: string;
+    significance: "high" | "medium" | "low";
+  }>;
+  grahamAssessment: string;
+  verdict: "buy" | "hold" | "avoid";
+}
+
+export type AiAnalysisStreamEvent =
+  | { type: "progress"; ticker: string; current: number; total: number }
+  | { type: "result"; ticker: string; analysis: TickerAnalysis }
+  | { type: "error"; ticker: string; error: string }
+  | { type: "done" };

@@ -102,7 +102,7 @@ export function PortfolioUploader({ onPositionsReady, disabled }: Props) {
                       <tr key={i} className="border-t">
                         <td className="px-3 py-1.5 font-mono font-medium">{p.ticker}</td>
                         <td className="px-3 py-1.5 text-right tabular-nums">{p.shares.toLocaleString()}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">${p.costBasis.toFixed(2)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">€{p.costBasis.toFixed(2)}</td>
                       </tr>
                     ))}
                     {preview.length > 10 && (

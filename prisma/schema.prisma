@@ -86,6 +86,16 @@ model PortfolioPosition {
   @@index([sessionId])
 }
 
+// ── AI Portfolio Analysis cache ──────────────────────────────────────────────
+
+model AiAnalysis {
+  id          Int      @id @default(autoincrement())
+  portfolioId String   @unique // maps to PortfolioSession.id
+  data        String   // JSON blob of TickerAnalysis[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // ── Seed job audit log ───────────────────────────────────────────────────────
 
 model SeedJob {

@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState, useCallback, useEffect } from "react";
 import { PortfolioUploader } from "@/components/portfolio/PortfolioUploader";
 import { PortfolioSummaryHeader } from "@/components/portfolio/PortfolioSummaryHeader";
 import { StockValuationCard } from "@/components/portfolio/StockValuationCard";
-import { AICommentaryPanel } from "@/components/portfolio/AICommentaryPanel";
-import { EventsCalendar } from "@/components/portfolio/EventsCalendar";
-import type { PortfolioAnalyzeResponse, RawPosition, EnrichedPosition } from "@/types/portfolio";
+import type {
+  PortfolioAnalyzeResponse,
+  RawPosition,
+  EnrichedPosition,
+  TickerAnalysis,
+  AiAnalysisStreamEvent,
+} from "@/types/portfolio";
 
 type Phase = "input" | "loading" | "results";
 
@@ -15,15 +18,53 @@ export default function PortfolioPage() {
   const [phase, setPhase] = useState<Phase>("input");
   const [result, setResult] = useState<PortfolioAnalyzeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Per-ticker AI commentary keyed by ticker symbol
-  const [aiCommentary, setAiCommentary] = useState<Record<string, string>>({});
-  const [aiLoading, setAiLoading] = useState(false);
+
+  const [aiAnalysisResults, setAiAnalysisResults] = useState<Record<string, TickerAnalysis>>({});
+  const [analyzingTickers, setAnalyzingTickers] = useState<Record<string, boolean>>({});
+
+  // On mount: restore session from URL ?session= param or sessionStorage
+  useEffect(() => {
+    const sessionId =
+      new URLSearchParams(window.location.search).get("session") ??
+      sessionStorage.getItem("portfolio_session_id");
+    if (!sessionId) return;
+
+    setPhase("loading");
+    Promise.all([
+      fetch(`/api/portfolio/analyze?sessionId=${sessionId}`).then((r) => r.json()),
+      fetch(`/api/analyze?portfolioId=${sessionId}`).then((r) => r.json()),
+    ])
+      .then(([portfolioData, aiData]) => {
+        if (!portfolioData?.sessionId) {
+          // Session not found — drop the URL param and show input
+          sessionStorage.removeItem("portfolio_session_id");
+          window.history.replaceState(null, "", window.location.pathname);
+          setPhase("input");
+          return;
+        }
+        sessionStorage.setItem("portfolio_session_id", portfolioData.sessionId);
+        setResult(portfolioData as PortfolioAnalyzeResponse);
+        if (aiData?.analyses) {
+          const map: Record<string, TickerAnalysis> = {};
+          for (const a of aiData.analyses as TickerAnalysis[]) {
+            map[a.ticker] = a;
+          }
+          setAiAnalysisResults(map);
+        }
+        setPhase("results");
+      })
+      .catch(() => {
+        sessionStorage.removeItem("portfolio_session_id");
+        window.history.replaceState(null, "", window.location.pathname);
+        setPhase("input");
+      });
+  }, []);
 
   const handlePositionsReady = useCallback(
     async (positions: RawPosition[], source: "csv" | "manual") => {
       setPhase("loading");
       setError(null);
-      setAiCommentary({});
+      setAiAnalysisResults({});
 
       try {
         const res = await fetch("/api/portfolio/analyze", {
@@ -38,7 +79,9 @@ export default function PortfolioPage() {
         const data: PortfolioAnalyzeResponse = await res.json();
         setResult(data);
         setPhase("results");
-        setAiLoading(true);
+        // Persist session reference in URL and sessionStorage
+        window.history.replaceState(null, "", `?session=${data.sessionId}`);
+        sessionStorage.setItem("portfolio_session_id", data.sessionId);
       } catch (e) {
         setError(String(e));
         setPhase("input");
@@ -47,19 +90,62 @@ export default function PortfolioPage() {
     []
   );
 
-  const handleStockCommentary = useCallback((ticker: string, commentary: string) => {
-    setAiCommentary((prev) => ({ ...prev, [ticker]: commentary }));
-  }, []);
+  const startAiAnalysisForTicker = useCallback(async (ticker: string) => {
+    if (!result?.sessionId) return;
 
-  const handleAIDone = useCallback(() => {
-    setAiLoading(false);
-  }, []);
+    setAnalyzingTickers((prev) => ({ ...prev, [ticker]: true }));
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ portfolioId: result.sessionId, ticker }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const event: AiAnalysisStreamEvent = JSON.parse(line);
+            if (event.type === "result") {
+              setAiAnalysisResults((prev) => ({ ...prev, [event.ticker]: event.analysis }));
+            }
+          } catch {/* skip */}
+        }
+      }
+    } catch (e) {
+      console.error(`AI analysis error for ${ticker}:`, e);
+    } finally {
+      setAnalyzingTickers((prev) => {
+        const next = { ...prev };
+        delete next[ticker];
+        return next;
+      });
+    }
+  }, [result?.sessionId]);
 
   const reset = () => {
     setPhase("input");
     setResult(null);
-    setAiCommentary({});
-    setAiLoading(false);
+    setAiAnalysisResults({});
+    setAnalyzingTickers({});
+    sessionStorage.removeItem("portfolio_session_id");
+    window.history.replaceState(null, "", window.location.pathname);
   };
 
   return (
@@ -106,38 +192,17 @@ export default function PortfolioPage() {
 
           <PortfolioSummaryHeader summary={result.summary} />
 
-          <Tabs defaultValue="positions">
-            <TabsList>
-              <TabsTrigger value="positions">Valuations</TabsTrigger>
-              <TabsTrigger value="ai">AI Summary</TabsTrigger>
-              <TabsTrigger value="events">Events Calendar</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="positions" className="mt-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {result.positions.map((position: EnrichedPosition) => (
-                  <StockValuationCard
-                    key={position.ticker}
-                    position={position}
-                    aiCommentary={aiCommentary[position.ticker]}
-                    isLoadingAI={aiLoading}
-                  />
-                ))}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="ai" className="mt-6 max-w-3xl">
-              <AICommentaryPanel
-                sessionId={result.sessionId}
-                onStockCommentary={handleStockCommentary}
-                onDone={handleAIDone}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {result.positions.map((position: EnrichedPosition) => (
+              <StockValuationCard
+                key={position.ticker}
+                position={position}
+                analysis={aiAnalysisResults[position.ticker] ?? null}
+                isAnalyzing={!!analyzingTickers[position.ticker]}
+                onAnalyze={() => startAiAnalysisForTicker(position.ticker)}
               />
-            </TabsContent>
-
-            <TabsContent value="events" className="mt-6 max-w-3xl">
-              <EventsCalendar sessionId={result.sessionId} />
-            </TabsContent>
-          </Tabs>
+            ))}
+          </div>
         </div>
       )}
     </div>
