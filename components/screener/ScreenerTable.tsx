@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
   Table,
   TableBody,
@@ -99,9 +99,8 @@ export function ScreenerTable({ results, total, page, pageSize, isLoading, onPag
           </TableHeader>
           <TableBody>
             {results.map((result) => (
-              <>
+              <Fragment key={result.ticker}>
                 <TableRow
-                  key={result.ticker}
                   className={`cursor-pointer hover:bg-muted/50 ${expandedTicker === result.ticker ? "bg-muted/30" : ""}`}
                   onClick={() =>
                     setExpandedTicker(expandedTicker === result.ticker ? null : result.ticker)
@@ -144,7 +143,7 @@ export function ScreenerTable({ results, total, page, pageSize, isLoading, onPag
                     </TableCell>
                   </TableRow>
                 )}
-              </>
+              </Fragment>
             ))}
           </TableBody>
         </Table>

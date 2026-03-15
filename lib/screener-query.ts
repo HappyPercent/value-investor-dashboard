@@ -11,11 +11,26 @@ export async function queryScreener(
   const where: Record<string, any> = {companyName: { not: null }}; // Exclude tickers that failed to fetch at all
 
   if (filters.index && filters.index !== "ALL") where.index = filters.index;
-  if (filters.peMax != null) where.peRatio = { lte: filters.peMax, not: null };
-  if (filters.pbMax != null) where.pbRatio = { lte: filters.pbMax, not: null };
-  if (filters.deMax != null) where.deRatio = { lte: filters.deMax, not: null };
-  if (filters.mosMin != null) where.marginOfSafety = { gte: filters.mosMin / 100, not: null };
-  if (filters.crMin != null) where.currentRatio = { gte: filters.crMin, not: null };
+
+  if (filters.peMin != null || filters.peMax != null) {
+    where.peRatio = { not: null, ...(filters.peMin != null && { gte: filters.peMin }), ...(filters.peMax != null && { lte: filters.peMax }) };
+  }
+  if (filters.pbMin != null || filters.pbMax != null) {
+    where.pbRatio = { not: null, ...(filters.pbMin != null && { gte: filters.pbMin }), ...(filters.pbMax != null && { lte: filters.pbMax }) };
+  }
+  if (filters.deMin != null || filters.deMax != null) {
+    where.deRatio = { not: null, ...(filters.deMin != null && { gte: filters.deMin }), ...(filters.deMax != null && { lte: filters.deMax }) };
+  }
+  if (filters.mosMin != null || filters.mosMax != null) {
+    where.marginOfSafety = { not: null, ...(filters.mosMin != null && { gte: filters.mosMin / 100 }), ...(filters.mosMax != null && { lte: filters.mosMax / 100 }) };
+  }
+  if (filters.crMin != null || filters.crMax != null) {
+    where.currentRatio = { not: null, ...(filters.crMin != null && { gte: filters.crMin }), ...(filters.crMax != null && { lte: filters.crMax }) };
+  }
+  if (filters.marketCapMin != null || filters.marketCapMax != null) {
+    const B = 1_000_000_000;
+    where.marketCap = { not: null, ...(filters.marketCapMin != null && { gte: filters.marketCapMin * B }), ...(filters.marketCapMax != null && { lte: filters.marketCapMax * B }) };
+  }
 
   const clampedPage = Math.max(1, page);
   const clampedSize = Math.min(200, Math.max(1, pageSize));

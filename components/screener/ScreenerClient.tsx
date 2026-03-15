@@ -9,7 +9,14 @@ import type { ScreenerFilters, ScreenerResult, ScreenerResultsResponse, SeedOpti
 interface Props {
   initialData: ScreenerResultsResponse;
 }
-const DEFAULT_FILTERS: ScreenerFilters = { index: "ALL" };
+const DEFAULT_FILTERS: ScreenerFilters = {
+  index:    "ALL",
+  peMax:    15,      // Graham: P/E ≤ 15
+  pbMax:    1.5,     // Graham: P/B ≤ 1.5
+  deMax:    0.5,     // Graham: conservative leverage
+  crMin:    2.0,     // Graham: current ratio ≥ 2
+  mosMin:   33,      // Buy at ≥ 33% below intrinsic value
+};
 
 export function ScreenerClient({ initialData }: Props) {
   const [filters, setFilters] = useState<ScreenerFilters>(DEFAULT_FILTERS);
@@ -25,11 +32,18 @@ export function ScreenerClient({ initialData }: Props) {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
-      if (currentFilters.peMax  != null) params.set("peMax",  String(currentFilters.peMax));
-      if (currentFilters.pbMax  != null) params.set("pbMax",  String(currentFilters.pbMax));
-      if (currentFilters.deMax  != null) params.set("deMax",  String(currentFilters.deMax));
-      if (currentFilters.mosMin != null) params.set("mosMin", String(currentFilters.mosMin));
-      if (currentFilters.crMin  != null) params.set("crMin",  String(currentFilters.crMin));
+      if (currentFilters.peMin       != null) params.set("peMin",       String(currentFilters.peMin));
+      if (currentFilters.peMax       != null) params.set("peMax",       String(currentFilters.peMax));
+      if (currentFilters.pbMin       != null) params.set("pbMin",       String(currentFilters.pbMin));
+      if (currentFilters.pbMax       != null) params.set("pbMax",       String(currentFilters.pbMax));
+      if (currentFilters.deMin       != null) params.set("deMin",       String(currentFilters.deMin));
+      if (currentFilters.deMax       != null) params.set("deMax",       String(currentFilters.deMax));
+      if (currentFilters.mosMin      != null) params.set("mosMin",      String(currentFilters.mosMin));
+      if (currentFilters.mosMax      != null) params.set("mosMax",      String(currentFilters.mosMax));
+      if (currentFilters.crMin       != null) params.set("crMin",       String(currentFilters.crMin));
+      if (currentFilters.crMax       != null) params.set("crMax",       String(currentFilters.crMax));
+      if (currentFilters.marketCapMin != null) params.set("marketCapMin", String(currentFilters.marketCapMin));
+      if (currentFilters.marketCapMax != null) params.set("marketCapMax", String(currentFilters.marketCapMax));
       if (currentFilters.index && currentFilters.index !== "ALL") params.set("index", currentFilters.index);
       if (currentFilters.sortBy) params.set("sortBy", currentFilters.sortBy);
       if (currentFilters.sortOrder) params.set("sortOrder", currentFilters.sortOrder);

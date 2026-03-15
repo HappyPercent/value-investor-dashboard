@@ -18,11 +18,18 @@ export interface ScreenerResult {
 }
 
 export interface ScreenerFilters {
+  peMin?: number;
   peMax?: number;
+  pbMin?: number;
   pbMax?: number;
+  deMin?: number;
   deMax?: number;
   mosMin?: number;   // 0-100 percent
+  mosMax?: number;   // 0-100 percent
   crMin?: number;
+  crMax?: number;
+  marketCapMin?: number; // billions USD
+  marketCapMax?: number; // billions USD
   index?: "SP500" | "RUSSELL2000" | "ALL";
   sortBy?: "marginOfSafety" | "peRatio" | "pbRatio" | "deRatio" | "currentRatio" | "dividendYield" | "currentPrice" | "grahamNumber" | "ticker";
   sortOrder?: "asc" | "desc";

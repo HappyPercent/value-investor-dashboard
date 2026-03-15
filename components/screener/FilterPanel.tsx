@@ -22,36 +22,66 @@ interface Props {
   isLoading: boolean;
 }
 
-interface FilterInputProps {
+function parseNum(val: string): number | undefined {
+  return val === "" ? undefined : parseFloat(val);
+}
+
+interface RangeFilterProps {
   label: string;
-  id: string;
-  value: number | undefined;
-  onChange: (v: number | undefined) => void;
-  placeholder: string;
+  minId: string;
+  maxId: string;
+  minValue: number | undefined;
+  maxValue: number | undefined;
+  onMinChange: (v: number | undefined) => void;
+  onMaxChange: (v: number | undefined) => void;
+  minPlaceholder?: string;
+  maxPlaceholder?: string;
   step?: string;
 }
 
-function FilterInput({ label, id, value, onChange, placeholder, step = "0.1" }: FilterInputProps) {
+function RangeFilter({
+  label,
+  minId,
+  maxId,
+  minValue,
+  maxValue,
+  onMinChange,
+  onMaxChange,
+  minPlaceholder = "Min",
+  maxPlaceholder = "Max",
+  step = "0.1",
+}: RangeFilterProps) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-xs">{label}</Label>
-      <Input
-        id={id}
-        type="number"
-        placeholder={placeholder}
-        step={step}
-        min="0"
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value === "" ? undefined : parseFloat(e.target.value))}
-        className="h-8 text-sm"
-      />
+      <Label className="text-xs">{label}</Label>
+      <div className="flex gap-1.5">
+        <Input
+          id={minId}
+          type="number"
+          placeholder={minPlaceholder}
+          step={step}
+          min="0"
+          value={minValue ?? ""}
+          onChange={(e) => onMinChange(parseNum(e.target.value))}
+          className="h-8 text-sm w-0 flex-1"
+        />
+        <Input
+          id={maxId}
+          type="number"
+          placeholder={maxPlaceholder}
+          step={step}
+          min="0"
+          value={maxValue ?? ""}
+          onChange={(e) => onMaxChange(parseNum(e.target.value))}
+          className="h-8 text-sm w-0 flex-1"
+        />
+      </div>
     </div>
   );
 }
 
 export function FilterPanel({ filters, onChange, onSeedRequest, lastSeededAt, staleTickers, isLoading }: Props) {
-  const set = (key: keyof ScreenerFilters, value: unknown) =>
-    onChange({ ...filters, [key]: value });
+  const set = (patch: Partial<ScreenerFilters>) => onChange({ ...filters, ...patch });
 
   return (
     <div className="space-y-4">
@@ -59,7 +89,7 @@ export function FilterPanel({ filters, onChange, onSeedRequest, lastSeededAt, st
         <Label className="text-xs">Index</Label>
         <Select
           value={filters.index ?? "ALL"}
-          onValueChange={(v) => set("index", v as ScreenerFilters["index"])}
+          onValueChange={(v) => set({ index: v as ScreenerFilters["index"] })}
         >
           <SelectTrigger className="h-8 text-sm">
             <SelectValue />
@@ -72,42 +102,55 @@ export function FilterPanel({ filters, onChange, onSeedRequest, lastSeededAt, st
         </Select>
       </div>
 
-      <FilterInput
-        label="Max P/E"
-        id="peMax"
-        value={filters.peMax}
-        onChange={(v) => set("peMax", v)}
-        placeholder="15"
+      <RangeFilter
+        label="P/E Ratio"
+        minId="peMin" maxId="peMax"
+        minValue={filters.peMin} maxValue={filters.peMax}
+        onMinChange={(v) => set({ peMin: v })}
+        onMaxChange={(v) => set({ peMax: v })}
         step="1"
       />
-      <FilterInput
-        label="Max P/B"
-        id="pbMax"
-        value={filters.pbMax}
-        onChange={(v) => set("pbMax", v)}
-        placeholder="1.5"
+
+      <RangeFilter
+        label="P/B Ratio"
+        minId="pbMin" maxId="pbMax"
+        minValue={filters.pbMin} maxValue={filters.pbMax}
+        onMinChange={(v) => set({ pbMin: v })}
+        onMaxChange={(v) => set({ pbMax: v })}
       />
-      <FilterInput
-        label="Max D/E"
-        id="deMax"
-        value={filters.deMax}
-        onChange={(v) => set("deMax", v)}
-        placeholder="0.5"
+
+      <RangeFilter
+        label="D/E Ratio"
+        minId="deMin" maxId="deMax"
+        minValue={filters.deMin} maxValue={filters.deMax}
+        onMinChange={(v) => set({ deMin: v })}
+        onMaxChange={(v) => set({ deMax: v })}
       />
-      <FilterInput
-        label="Min Current Ratio"
-        id="crMin"
-        value={filters.crMin}
-        onChange={(v) => set("crMin", v)}
-        placeholder="2.0"
+
+      <RangeFilter
+        label="Current Ratio"
+        minId="crMin" maxId="crMax"
+        minValue={filters.crMin} maxValue={filters.crMax}
+        onMinChange={(v) => set({ crMin: v })}
+        onMaxChange={(v) => set({ crMax: v })}
       />
-      <FilterInput
-        label="Min Margin of Safety %"
-        id="mosMin"
-        value={filters.mosMin}
-        onChange={(v) => set("mosMin", v)}
-        placeholder="20"
+
+      <RangeFilter
+        label="Margin of Safety %"
+        minId="mosMin" maxId="mosMax"
+        minValue={filters.mosMin} maxValue={filters.mosMax}
+        onMinChange={(v) => set({ mosMin: v })}
+        onMaxChange={(v) => set({ mosMax: v })}
         step="5"
+      />
+
+      <RangeFilter
+        label="Market Cap ($B)"
+        minId="marketCapMin" maxId="marketCapMax"
+        minValue={filters.marketCapMin} maxValue={filters.marketCapMax}
+        onMinChange={(v) => set({ marketCapMin: v })}
+        onMaxChange={(v) => set({ marketCapMax: v })}
+        step="1"
       />
 
       <div className="pt-2 border-t space-y-2">

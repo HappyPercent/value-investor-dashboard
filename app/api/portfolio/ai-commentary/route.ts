@@ -61,8 +61,8 @@ export async function POST(req: Request) {
           // Events calendar: stream raw text
           const prompt = buildEventsPrompt(positions);
           const anthropicStream = anthropic.messages.stream({
-            model: "claude-sonnet-4-6",
-            max_tokens: 2000,
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 1200,
             messages: [{ role: "user", content: prompt }],
           });
 
@@ -83,8 +83,8 @@ export async function POST(req: Request) {
           let fullText = "";
 
           const anthropicStream = anthropic.messages.stream({
-            model: "claude-sonnet-4-6",
-            max_tokens: 4000,
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 2000,
             messages: [{ role: "user", content: prompt }],
           });
 

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { fetchFundamentals } from "@/lib/yahoo";
+import { fetchFundamentals, parseYahooResult } from "@/lib/yahoo";
 import { computeGrahamNumber, computeMarginOfSafety } from "@/lib/graham";
 import { delay } from "@/lib/rate-limiter";
 import { SP500_TICKERS, RUSSELL2000_TICKERS, FUNDAMENTALS_TTL_HOURS } from "@/lib/constants";
@@ -37,26 +37,37 @@ export async function seedUniverse(options: {
     return true;
   });
 
-  // Filter out already-fresh tickers unless force refresh
+  // Split tickers into stale (need Yahoo fetch) and fresh (recompute from cached rawData)
   const ttlCutoff = new Date(Date.now() - FUNDAMENTALS_TTL_HOURS * 60 * 60 * 1000);
-  let toProcess = tickers;
-  if (!forceRefresh) {
-    const existingFresh = await prisma.screenerTicker.findMany({
-      where: { fetchedAt: { gte: ttlCutoff } },
-      select: { ticker: true },
+
+  type TickerWork = { ticker: string; idx: string; rawData: string | null };
+  let toProcess: TickerWork[];
+
+  if (forceRefresh) {
+    toProcess = tickers.map((t) => ({ ...t, rawData: null }));
+  } else {
+    const existing = await prisma.screenerTicker.findMany({
+      where: { ticker: { in: tickers.map((t) => t.ticker) } },
+      select: { ticker: true, fetchedAt: true, rawData: true },
     });
-    const freshSet = new Set(existingFresh.map((r) => r.ticker));
-    toProcess = tickers.filter(({ ticker }) => !freshSet.has(ticker));
+    const existingMap = new Map(existing.map((r) => [r.ticker, r]));
+    toProcess = tickers.map(({ ticker, idx }) => {
+      const row = existingMap.get(ticker);
+      const isFresh = row?.fetchedAt && row.fetchedAt >= ttlCutoff;
+      // Fresh + has cache → recompute from rawData (no API call)
+      // Fresh + no cache → still need to fetch
+      return { ticker, idx, rawData: isFresh && row?.rawData ? row.rawData : null };
+    });
   }
 
   const job = await prisma.seedJob.create({
     data: {
       status: "running",
-      totalTickers: toProcess.length,
+      totalTickers: tickers.length,
     },
   });
 
-  await onProgress({ type: "seed_start", jobId: job.id, total: toProcess.length });
+  await onProgress({ type: "seed_start", jobId: job.id, total: tickers.length });
 
   const startMs = Date.now();
   let succeeded = 0;
@@ -71,10 +82,13 @@ export async function seedUniverse(options: {
     const batchStart = Date.now();
     const batch = toProcess.slice(i, i + CONCURRENCY);
 
-    const processTicker = async ({ ticker, idx }: { ticker: string; idx: string }) => {
+    const processTicker = async ({ ticker, idx, rawData: cachedRaw }: TickerWork) => {
       let success = false;
       try {
-        const f = await fetchFundamentals(ticker);
+        // Use cached raw data if available (avoids Yahoo API call)
+        const f = cachedRaw
+          ? { ...parseYahooResult(JSON.parse(cachedRaw)), rawData: cachedRaw }
+          : await fetchFundamentals(ticker);
         const grahamNumber = computeGrahamNumber(f.trailingEPS, f.bookValuePerShare);
         const marginOfSafety = computeMarginOfSafety(grahamNumber, f.currentPrice);
 
@@ -144,7 +158,7 @@ export async function seedUniverse(options: {
         ticker,
         success,
         processed,
-        total: toProcess.length,
+        total: tickers.length,
       });
     }
 

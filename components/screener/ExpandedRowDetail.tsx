@@ -80,7 +80,7 @@ export function ExpandedRowDetail({ result, cachedCommentary, onCommentaryReceiv
       </div>
 
       {/* AI Commentary */}
-      <div>
+      <div className="min-w-0">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
           AI Analysis
         </h4>
@@ -99,7 +99,11 @@ export function ExpandedRowDetail({ result, cachedCommentary, onCommentaryReceiv
           <p className="text-sm text-destructive">{error}</p>
         ) : (
           <div className="space-y-2">
-            <p className="text-sm leading-relaxed text-muted-foreground">{commentary}</p>
+            <div className="text-sm leading-relaxed text-muted-foreground space-y-1.5 break-words">
+              {commentary.split("\n").filter(Boolean).map((line, i) => (
+                <p key={i} className="[text-wrap:auto]">{line}</p>
+              ))}
+            </div>
             <Button variant="ghost" size="sm" onClick={requestAI} disabled={loading}>
               <Sparkles className="h-3 w-3 mr-1" />
               Regenerate

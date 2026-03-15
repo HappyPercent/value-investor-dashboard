@@ -33,7 +33,7 @@ Note: For financial sector stocks (banks, insurance) and REITs, flag that Graham
 After the per-stock commentary, provide a 3-4 sentence overall portfolio summary covering diversification, average margin of safety, top concerns, and overall quality.
 
 Portfolio data:
-${JSON.stringify(positionData, null, 2)}
+${JSON.stringify(positionData)}
 
 Respond with valid JSON only, no markdown fences:
 {
@@ -62,7 +62,7 @@ For each relevant ticker, list:
 Be specific about timing where possible (e.g., "Q1 2025 earnings expected ~April 2025"). If no specific catalyst applies, skip that ticker.
 
 Holdings:
-${JSON.stringify(holdings, null, 2)}
+${JSON.stringify(holdings)}
 
 Format as a readable list grouped by ticker, like:
 **TICKER (Company Name)**
