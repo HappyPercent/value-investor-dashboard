@@ -24,6 +24,7 @@ export async function GET(req: Request) {
     crMax:        getNum(searchParams, "crMax"),
     marketCapMin: getNum(searchParams, "marketCapMin"),
     marketCapMax: getNum(searchParams, "marketCapMax"),
+    tickerSearch: searchParams.get("tickerSearch") ?? undefined,
     sortBy:       searchParams.get("sortBy") as ScreenerFilters["sortBy"] || "marginOfSafety",
     sortOrder:    searchParams.get("sortOrder") as ScreenerFilters["sortOrder"] || "desc",
   };

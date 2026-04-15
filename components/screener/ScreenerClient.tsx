@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FilterPanel } from "@/components/screener/FilterPanel";
 import { ScreenerTable, SortKey } from "@/components/screener/ScreenerTable";
 import { SeedProgressModal } from "@/components/screener/SeedProgressModal";
@@ -27,6 +27,8 @@ export function ScreenerClient({ initialData }: Props) {
   const [seedOptions, setSeedOptions] = useState<SeedOptions>({ index: "ALL", forceRefresh: false });
   const [sortKey, setSortKey] = useState<SortKey>("marginOfSafety");
   const [sortAsc, setSortAsc] = useState(false);
+  const [tickerSearch, setTickerSearch] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchResults = useCallback(async (currentFilters: ScreenerFilters, currentPage: number) => {
     setIsLoading(true);
@@ -45,6 +47,7 @@ export function ScreenerClient({ initialData }: Props) {
       if (currentFilters.marketCapMin != null) params.set("marketCapMin", String(currentFilters.marketCapMin));
       if (currentFilters.marketCapMax != null) params.set("marketCapMax", String(currentFilters.marketCapMax));
       if (currentFilters.index && currentFilters.index !== "ALL") params.set("index", currentFilters.index);
+      if (currentFilters.tickerSearch) params.set("tickerSearch", currentFilters.tickerSearch);
       if (currentFilters.sortBy) params.set("sortBy", currentFilters.sortBy);
       if (currentFilters.sortOrder) params.set("sortOrder", currentFilters.sortOrder);
       params.set("page", String(currentPage));
@@ -62,6 +65,19 @@ export function ScreenerClient({ initialData }: Props) {
     setPage(1);
     fetchResults(newFilters, 1);
   };
+
+  const handleTickerSearchChange = (value: string) => {
+    setTickerSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const newFilters = { ...filters, tickerSearch: value || undefined };
+      setFilters(newFilters);
+      setPage(1);
+      fetchResults(newFilters, 1);
+    }, 300);
+  };
+
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
@@ -96,6 +112,13 @@ export function ScreenerClient({ initialData }: Props) {
           <p className="text-sm text-muted-foreground">
             {isLoading ? "Loading…" : `${data.total.toLocaleString()} results`}
           </p>
+          <input
+            type="search"
+            placeholder="Search ticker or company…"
+            value={tickerSearch}
+            onChange={(e) => handleTickerSearchChange(e.target.value)}
+            className="h-8 w-56 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
         </div>
         <ScreenerTable
           results={data.results}

@@ -12,6 +12,16 @@ export async function queryScreener(
 
   if (filters.index && filters.index !== "ALL") where.index = filters.index;
 
+  if (filters.tickerSearch) {
+    const q = filters.tickerSearch.trim();
+    if (q) {
+      where.OR = [
+        { ticker:      { contains: q } },
+        { companyName: { contains: q } },
+      ];
+    }
+  }
+
   if (filters.peMin != null || filters.peMax != null) {
     where.peRatio = { not: null, ...(filters.peMin != null && { gte: filters.peMin }), ...(filters.peMax != null && { lte: filters.peMax }) };
   }

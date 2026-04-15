@@ -26,33 +26,61 @@ export async function POST(req: Request) {
     );
   }
 
-  const positions: EnrichedPosition[] = dbPositions.map((p) => ({
-    id: p.id,
-    sessionId: p.sessionId,
-    ticker: p.ticker,
-    shares: p.shares,
-    costBasis: p.costBasis,
-    companyName: p.companyName,
-    sector: p.sector,
-    industry: p.industry,
-    currentPrice: p.currentPrice,
-    trailingEPS: p.trailingEPS,
-    bookValuePerShare: p.bookValuePerShare,
-    peRatio: p.peRatio,
-    pbRatio: p.pbRatio,
-    deRatio: p.deRatio,
-    currentRatio: p.currentRatio,
-    dividendYield: p.dividendYield,
-    marketCap: p.marketCap,
-    nextEarningsDate: p.nextEarningsDate?.toISOString() ?? null,
-    grahamNumber: p.grahamNumber,
-    marginOfSafety: p.marginOfSafety,
-    currentValue: p.currentValue,
-    gainLoss: p.gainLoss,
-    gainLossPct: p.gainLossPct,
-    fetchedAt: p.fetchedAt?.toISOString() ?? null,
-    fetchError: p.fetchError,
-  }));
+  const positions: EnrichedPosition[] = dbPositions.map((p) => {
+    let epsHistory: number[] | null = null;
+    if (p.epsHistory) {
+      try { epsHistory = JSON.parse(p.epsHistory); } catch { /* ignore */ }
+    }
+    return {
+      id: p.id,
+      sessionId: p.sessionId,
+      ticker: p.ticker,
+      shares: p.shares,
+      costBasis: p.costBasis,
+      companyName: p.companyName,
+      sector: p.sector,
+      industry: p.industry,
+      currentPrice: p.currentPrice,
+      trailingEPS: p.trailingEPS,
+      bookValuePerShare: p.bookValuePerShare,
+      peRatio: p.peRatio,
+      pbRatio: p.pbRatio,
+      deRatio: p.deRatio,
+      currentRatio: p.currentRatio,
+      dividendYield: p.dividendYield,
+      marketCap: p.marketCap,
+      nextEarningsDate: p.nextEarningsDate?.toISOString() ?? null,
+      grahamNumber: p.grahamNumber,
+      marginOfSafety: p.marginOfSafety,
+      currentValue: p.currentValue,
+      gainLoss: p.gainLoss,
+      gainLossPct: p.gainLossPct,
+      returnOnEquity: p.returnOnEquity,
+      returnOnAssets: p.returnOnAssets,
+      grossMargins: p.grossMargins,
+      operatingMargins: p.operatingMargins,
+      revenueGrowth: p.revenueGrowth,
+      earningsGrowth: p.earningsGrowth,
+      freeCashflow: p.freeCashflow,
+      operatingCashflow: p.operatingCashflow,
+      totalDebt: p.totalDebt,
+      totalCash: p.totalCash,
+      sharesOutstanding: p.sharesOutstanding,
+      forwardEPS: p.forwardEPS,
+      totalCurrentAssets: p.totalCurrentAssets,
+      totalCurrentLiabilities: p.totalCurrentLiabilities,
+      totalAssets: p.totalAssets,
+      totalLiabilities: p.totalLiabilities,
+      retainedEarnings: p.retainedEarnings,
+      ebit: p.ebit,
+      revenue: p.revenue,
+      epsHistory,
+      altmanZScore: p.altmanZScore,
+      ncavPerShare: p.ncavPerShare,
+      fetchedAt: p.fetchedAt?.toISOString() ?? null,
+      fetchError: p.fetchError,
+    };
+  });
 
   const encoder = new TextEncoder();
 

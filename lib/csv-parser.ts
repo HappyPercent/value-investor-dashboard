@@ -20,6 +20,8 @@ export function parsePortfolioCSV(file: File): Promise<ParseResult> {
           const ticker = (row["ticker"] ?? row["symbol"] ?? row["Ticker"] ?? row["Symbol"] ?? "").trim().toUpperCase();
           const sharesRaw = row["shares"] ?? row["Shares"] ?? row["quantity"] ?? row["Quantity"] ?? "";
           const costRaw = row["cost_basis"] ?? row["costBasis"] ?? row["cost"] ?? row["Cost"] ?? row["Cost Basis"] ?? "";
+          const currencyRaw = (row["currency"] ?? row["Currency"] ?? row["ccy"] ?? row["CCY"] ?? "").trim().toUpperCase();
+          const currency = currencyRaw || "EUR"; // default to EUR
 
           if (!ticker) {
             errors.push(`Row ${rowNum}: missing ticker/symbol`);
@@ -35,7 +37,7 @@ export function parsePortfolioCSV(file: File): Promise<ParseResult> {
             errors.push(`Row ${rowNum} (${ticker}): invalid cost_basis "${costRaw}"`);
             return;
           }
-          positions.push({ ticker, shares, costBasis });
+          positions.push({ ticker, shares, costBasis, currency });
         });
 
         if (results.errors.length > 0) {

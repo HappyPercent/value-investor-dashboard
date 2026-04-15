@@ -16,9 +16,10 @@ interface Row {
   ticker: string;
   shares: string;
   costBasis: string;
+  currency: string;
 }
 
-const emptyRow = (): Row => ({ ticker: "", shares: "", costBasis: "" });
+const emptyRow = (): Row => ({ ticker: "", shares: "", costBasis: "", currency: "EUR" });
 
 export function ManualEntryForm({ onPositionsReady, disabled }: Props) {
   const [rows, setRows] = useState<Row[]>([emptyRow()]);
@@ -43,7 +44,7 @@ export function ManualEntryForm({ onPositionsReady, disabled }: Props) {
       if (isNaN(shares) || shares <= 0) { errs.push(`Row ${rowNum} (${ticker}): invalid shares`); return; }
       const costBasis = parseFloat(row.costBasis);
       if (isNaN(costBasis) || costBasis < 0) { errs.push(`Row ${rowNum} (${ticker}): invalid cost basis`); return; }
-      positions.push({ ticker, shares, costBasis });
+      positions.push({ ticker, shares, costBasis, currency: row.currency || "EUR" });
     });
 
     if (errs.length > 0) {
@@ -56,15 +57,16 @@ export function ManualEntryForm({ onPositionsReady, disabled }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 text-sm font-medium text-muted-foreground px-1">
+      <div className="grid grid-cols-[1fr_1fr_1fr_80px_auto] gap-2 text-sm font-medium text-muted-foreground px-1">
         <Label>Ticker</Label>
         <Label>Shares</Label>
         <Label>Cost Basis / Share</Label>
+        <Label>Currency</Label>
         <span />
       </div>
 
       {rows.map((row, i) => (
-        <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
+        <div key={i} className="grid grid-cols-[1fr_1fr_1fr_80px_auto] gap-2 items-center">
           <Input
             placeholder="AAPL"
             value={row.ticker}
@@ -89,6 +91,16 @@ export function ManualEntryForm({ onPositionsReady, disabled }: Props) {
             onChange={(e) => update(i, "costBasis", e.target.value)}
             disabled={disabled}
           />
+          <select
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            value={row.currency}
+            onChange={(e) => update(i, "currency", e.target.value)}
+            disabled={disabled}
+          >
+            <option value="EUR">EUR</option>
+            <option value="USD">USD</option>
+            <option value="GBP">GBP</option>
+          </select>
           <Button
             variant="ghost"
             size="icon"

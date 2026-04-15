@@ -22,36 +22,40 @@ export default function PortfolioPage() {
   const [aiAnalysisResults, setAiAnalysisResults] = useState<Record<string, TickerAnalysis>>({});
   const [analyzingTickers, setAnalyzingTickers] = useState<Record<string, boolean>>({});
 
-  // On mount: restore session from URL ?session= param or sessionStorage
+  // On mount: restore session from URL ?session= param, sessionStorage, or last saved portfolio
   useEffect(() => {
-    const sessionId =
+    const localSessionId =
       new URLSearchParams(window.location.search).get("session") ??
       sessionStorage.getItem("portfolio_session_id");
-    if (!sessionId) return;
+
+    const portfolioUrl = localSessionId
+      ? `/api/portfolio/analyze?sessionId=${localSessionId}`
+      : `/api/portfolio/analyze`;
 
     setPhase("loading");
-    Promise.all([
-      fetch(`/api/portfolio/analyze?sessionId=${sessionId}`).then((r) => r.json()),
-      fetch(`/api/analyze?portfolioId=${sessionId}`).then((r) => r.json()),
-    ])
-      .then(([portfolioData, aiData]) => {
+    fetch(portfolioUrl)
+      .then((r) => r.json())
+      .then((portfolioData) => {
         if (!portfolioData?.sessionId) {
-          // Session not found — drop the URL param and show input
           sessionStorage.removeItem("portfolio_session_id");
           window.history.replaceState(null, "", window.location.pathname);
           setPhase("input");
           return;
         }
-        sessionStorage.setItem("portfolio_session_id", portfolioData.sessionId);
-        setResult(portfolioData as PortfolioAnalyzeResponse);
-        if (aiData?.analyses) {
-          const map: Record<string, TickerAnalysis> = {};
-          for (const a of aiData.analyses as TickerAnalysis[]) {
-            map[a.ticker] = a;
-          }
-          setAiAnalysisResults(map);
-        }
-        setPhase("results");
+        return fetch(`/api/analyze?portfolioId=${portfolioData.sessionId}`)
+          .then((r) => r.json())
+          .then((aiData) => {
+            sessionStorage.setItem("portfolio_session_id", portfolioData.sessionId);
+            setResult(portfolioData as PortfolioAnalyzeResponse);
+            if (aiData?.analyses) {
+              const map: Record<string, TickerAnalysis> = {};
+              for (const a of aiData.analyses as TickerAnalysis[]) {
+                map[a.ticker] = a;
+              }
+              setAiAnalysisResults(map);
+            }
+            setPhase("results");
+          });
       })
       .catch(() => {
         sessionStorage.removeItem("portfolio_session_id");

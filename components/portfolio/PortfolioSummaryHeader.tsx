@@ -11,10 +11,6 @@ function fmt(n: number, opts?: Intl.NumberFormatOptions) {
   return new Intl.NumberFormat("en-US", opts).format(n);
 }
 
-function fmtCurrency(n: number) {
-  return fmt(n, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-}
-
 function fmtEur(n: number) {
   return fmt(n, { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 }
@@ -52,11 +48,11 @@ export function PortfolioSummaryHeader({ summary, isLoading }: Props) {
       : "text-red-600";
 
   const stats = [
-    { label: "Portfolio Value", value: fmtCurrency(summary.totalValue) },
-    { label: "Cost Basis", value: fmtEur(summary.totalCostBasis) },
+    { label: "Portfolio Value (EUR)", value: fmtEur(summary.totalValue) },
+    { label: "Cost Basis (EUR)", value: fmtEur(summary.totalCostBasis) },
     {
-      label: "Gain / Loss",
-      value: `${summary.totalGainLoss >= 0 ? "+" : ""}${fmtCurrency(summary.totalGainLoss)} (${fmtPct(summary.totalGainLossPct)})`,
+      label: "Gain / Loss (EUR)",
+      value: `${summary.totalGainLoss >= 0 ? "+" : ""}${fmtEur(summary.totalGainLoss)} (${fmtPct(summary.totalGainLossPct)})`,
       color: gainColor,
     },
     {

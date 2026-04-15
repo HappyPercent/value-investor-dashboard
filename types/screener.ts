@@ -31,6 +31,7 @@ export interface ScreenerFilters {
   marketCapMin?: number; // billions USD
   marketCapMax?: number; // billions USD
   index?: "SP500" | "RUSSELL2000" | "ALL";
+  tickerSearch?: string;
   sortBy?: "marginOfSafety" | "peRatio" | "pbRatio" | "deRatio" | "currentRatio" | "dividendYield" | "currentPrice" | "grahamNumber" | "ticker";
   sortOrder?: "asc" | "desc";
 }

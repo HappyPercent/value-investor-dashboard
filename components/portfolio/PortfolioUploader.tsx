@@ -66,6 +66,7 @@ export function PortfolioUploader({ onPositionsReady, disabled }: Props) {
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Required columns: <code>ticker</code>, <code>shares</code>, <code>cost_basis</code>
+              {" "}· Optional: <code>currency</code> (EUR/USD, default EUR)
             </p>
             <input
               ref={fileRef}
@@ -95,6 +96,7 @@ export function PortfolioUploader({ onPositionsReady, disabled }: Props) {
                       <th className="text-left px-3 py-2 font-medium">Ticker</th>
                       <th className="text-right px-3 py-2 font-medium">Shares</th>
                       <th className="text-right px-3 py-2 font-medium">Cost Basis</th>
+                      <th className="text-right px-3 py-2 font-medium">Currency</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -102,7 +104,8 @@ export function PortfolioUploader({ onPositionsReady, disabled }: Props) {
                       <tr key={i} className="border-t">
                         <td className="px-3 py-1.5 font-mono font-medium">{p.ticker}</td>
                         <td className="px-3 py-1.5 text-right tabular-nums">{p.shares.toLocaleString()}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">€{p.costBasis.toFixed(2)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{p.costBasis.toFixed(2)}</td>
+                        <td className="px-3 py-1.5 text-right font-mono text-xs">{p.currency}</td>
                       </tr>
                     ))}
                     {preview.length > 10 && (

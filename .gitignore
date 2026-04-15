@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Geist font files (bundled by Next.js, not needed in repo)
 /app/fonts/
+
+.playwright-mcp/
+.claude/

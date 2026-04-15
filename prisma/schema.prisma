@@ -59,6 +59,8 @@ model PortfolioPosition {
   ticker    String
   shares    Float
   costBasis Float
+  currency     String  @default("EUR") // currency of costBasis
+  priceCurrency String?                // currency of currentPrice from Yahoo
 
   companyName       String?
   sector            String?
@@ -79,6 +81,42 @@ model PortfolioPosition {
   currentValue   Float?
   gainLoss       Float?
   gainLossPct    Float?
+
+  // Profitability & efficiency
+  returnOnEquity    Float?
+  returnOnAssets    Float?
+  grossMargins      Float?
+  operatingMargins  Float?
+  revenueGrowth     Float?
+  earningsGrowth    Float?
+
+  // Cash flow & debt
+  freeCashflow      Float?
+  operatingCashflow Float?
+  totalDebt         Float?
+  totalCash         Float?
+
+  // Share data
+  sharesOutstanding Float?
+  forwardEPS        Float?
+
+  // Balance sheet (most recent annual)
+  totalCurrentAssets      Float?
+  totalCurrentLiabilities Float?
+  totalAssets             Float?
+  totalLiabilities        Float?
+  retainedEarnings        Float?
+
+  // Income statement (most recent annual)
+  ebit    Float?
+  revenue Float?
+
+  // EPS history: JSON array of last ≤4 annual EPS values, most recent first
+  epsHistory String?
+
+  // Computed Graham metrics
+  altmanZScore Float?
+  ncavPerShare Float?
 
   fetchedAt  DateTime?
   fetchError String?

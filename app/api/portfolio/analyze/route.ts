@@ -1,34 +1,98 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { fetchFundamentals } from "@/lib/yahoo";
-import { computeGrahamNumber, computeMarginOfSafety } from "@/lib/graham";
+import { fetchFundamentals, fetchExchangeRate } from "@/lib/yahoo";
+import { computeGrahamNumber, computeMarginOfSafety, computeAltmanZ, computeNCAVPerShare } from "@/lib/graham";
 import { delay } from "@/lib/rate-limiter";
 import type { PortfolioAnalyzeRequest, PortfolioAnalyzeResponse, EnrichedPosition, PortfolioSummary } from "@/types/portfolio";
 
-// GET /api/portfolio/analyze?sessionId=xxx — restore a session from DB
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const sessionId = searchParams.get("sessionId");
+// ── Currency helpers ──────────────────────────────────────────────────────────
 
-  if (!sessionId) {
-    return NextResponse.json({ error: "sessionId is required" }, { status: 400 });
+/** Convert a value from `from` currency to EUR using the given EUR/USD rate. */
+function toEur(value: number, from: string, eurUsdRate: number): number {
+  if (from === "EUR") return value;
+  if (from === "USD") return value / eurUsdRate;
+  return value; // fallback: treat as EUR
+}
+
+/** Convert a cost basis in `costCurrency` to the `priceCurrency` for fair gain/loss calc. */
+function convertCostBasis(costBasis: number, costCurrency: string, priceCurrency: string, eurUsdRate: number): number {
+  if (costCurrency === priceCurrency) return costBasis;
+  if (costCurrency === "EUR" && priceCurrency === "USD") return costBasis * eurUsdRate;
+  if (costCurrency === "USD" && priceCurrency === "EUR") return costBasis / eurUsdRate;
+  return costBasis; // other pairs: no conversion (expand later)
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function parseEpsHistory(raw: string | null): number[] | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
   }
+}
 
-  const session = await prisma.portfolioSession.findUnique({
-    where: { id: sessionId },
-    include: { positions: { orderBy: { id: "asc" } } },
-  });
-
-  if (!session) {
-    return NextResponse.json(null);
-  }
-
-  const positions: EnrichedPosition[] = session.positions.map((p) => ({
+function dbPositionToEnriched(p: {
+  id: number;
+  sessionId: string;
+  ticker: string;
+  shares: number;
+  costBasis: number;
+  currency: string;
+  priceCurrency: string | null;
+  companyName: string | null;
+  sector: string | null;
+  industry: string | null;
+  currentPrice: number | null;
+  trailingEPS: number | null;
+  bookValuePerShare: number | null;
+  peRatio: number | null;
+  pbRatio: number | null;
+  deRatio: number | null;
+  currentRatio: number | null;
+  dividendYield: number | null;
+  marketCap: number | null;
+  nextEarningsDate: Date | null;
+  grahamNumber: number | null;
+  marginOfSafety: number | null;
+  currentValue: number | null;
+  gainLoss: number | null;
+  gainLossPct: number | null;
+  returnOnEquity: number | null;
+  returnOnAssets: number | null;
+  grossMargins: number | null;
+  operatingMargins: number | null;
+  revenueGrowth: number | null;
+  earningsGrowth: number | null;
+  freeCashflow: number | null;
+  operatingCashflow: number | null;
+  totalDebt: number | null;
+  totalCash: number | null;
+  sharesOutstanding: number | null;
+  forwardEPS: number | null;
+  totalCurrentAssets: number | null;
+  totalCurrentLiabilities: number | null;
+  totalAssets: number | null;
+  totalLiabilities: number | null;
+  retainedEarnings: number | null;
+  ebit: number | null;
+  revenue: number | null;
+  epsHistory: string | null;
+  altmanZScore: number | null;
+  ncavPerShare: number | null;
+  fetchedAt: Date | null;
+  fetchError: string | null;
+}): EnrichedPosition {
+  return {
     id: p.id,
     sessionId: p.sessionId,
     ticker: p.ticker,
     shares: p.shares,
     costBasis: p.costBasis,
+    currency: p.currency,
+    priceCurrency: p.priceCurrency,
     companyName: p.companyName,
     sector: p.sector,
     industry: p.industry,
@@ -47,12 +111,60 @@ export async function GET(req: Request) {
     currentValue: p.currentValue,
     gainLoss: p.gainLoss,
     gainLossPct: p.gainLossPct,
+    returnOnEquity: p.returnOnEquity,
+    returnOnAssets: p.returnOnAssets,
+    grossMargins: p.grossMargins,
+    operatingMargins: p.operatingMargins,
+    revenueGrowth: p.revenueGrowth,
+    earningsGrowth: p.earningsGrowth,
+    freeCashflow: p.freeCashflow,
+    operatingCashflow: p.operatingCashflow,
+    totalDebt: p.totalDebt,
+    totalCash: p.totalCash,
+    sharesOutstanding: p.sharesOutstanding,
+    forwardEPS: p.forwardEPS,
+    totalCurrentAssets: p.totalCurrentAssets,
+    totalCurrentLiabilities: p.totalCurrentLiabilities,
+    totalAssets: p.totalAssets,
+    totalLiabilities: p.totalLiabilities,
+    retainedEarnings: p.retainedEarnings,
+    ebit: p.ebit,
+    revenue: p.revenue,
+    epsHistory: parseEpsHistory(p.epsHistory),
+    altmanZScore: p.altmanZScore,
+    ncavPerShare: p.ncavPerShare,
     fetchedAt: p.fetchedAt?.toISOString() ?? null,
     fetchError: p.fetchError,
-  }));
+  };
+}
 
-  const totalValue = positions.reduce((s, p) => s + (p.currentValue ?? 0), 0);
-  const totalCostBasis = positions.reduce((s, p) => s + p.costBasis * p.shares, 0);
+// ── GET /api/portfolio/analyze?sessionId=xxx ──────────────────────────────────
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const sessionId = searchParams.get("sessionId");
+
+  const session = sessionId
+    ? await prisma.portfolioSession.findUnique({
+        where: { id: sessionId },
+        include: { positions: { orderBy: { id: "asc" } } },
+      })
+    : await prisma.portfolioSession.findFirst({
+        orderBy: { createdAt: "desc" },
+        include: { positions: { orderBy: { id: "asc" } } },
+      });
+
+  if (!session) {
+    return NextResponse.json({ sessionId: null });
+  }
+
+  const positions: EnrichedPosition[] = session.positions.map(dbPositionToEnriched);
+
+  const eurUsdRate = await fetchExchangeRate("EUR", "USD");
+
+  // All totals converted to EUR for a consistent base currency
+  const totalValue = positions.reduce((s, p) => s + toEur(p.currentValue ?? 0, p.priceCurrency ?? "USD", eurUsdRate), 0);
+  const totalCostBasis = positions.reduce((s, p) => s + toEur(p.costBasis * p.shares, p.currency, eurUsdRate), 0);
   const totalGainLoss = totalValue - totalCostBasis;
   const totalGainLossPct = totalCostBasis > 0 ? totalGainLoss / totalCostBasis : 0;
   const mosValues = positions.map((p) => p.marginOfSafety).filter((v): v is number => v !== null);
@@ -69,10 +181,13 @@ export async function GET(req: Request) {
     overvaluedCount: positions.filter((p) => p.marginOfSafety !== null && p.marginOfSafety < 0).length,
     naCount: positions.filter((p) => p.marginOfSafety === null).length,
     fetchErrors,
+    eurUsdRate,
   };
 
   return NextResponse.json({ sessionId, positions, summary } satisfies PortfolioAnalyzeResponse);
 }
+
+// ── POST /api/portfolio/analyze ───────────────────────────────────────────────
 
 export async function POST(req: Request) {
   let body: PortfolioAnalyzeRequest;
@@ -87,7 +202,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No positions provided" }, { status: 400 });
   }
 
-  // Create a new portfolio session
+  try {
+  // Replace any existing portfolio — only the last one is kept
+  await prisma.aiAnalysis.deleteMany({});
+  await prisma.portfolioSession.deleteMany({});
+
   const session = await prisma.portfolioSession.create({
     data: { source },
   });
@@ -95,9 +214,12 @@ export async function POST(req: Request) {
   const enrichedPositions: EnrichedPosition[] = [];
   const fetchErrors: string[] = [];
 
+  // Fetch EUR/USD rate once for the entire batch
+  const eurUsdRate = await fetchExchangeRate("EUR", "USD");
+
   for (let i = 0; i < positions.length; i++) {
     const pos = positions[i];
-    if (i > 0) await delay(500); // Rate limit yahoo-finance2
+    if (i > 0) await delay(500);
 
     let fundamentals = null;
     let fetchError: string | null = null;
@@ -118,11 +240,36 @@ export async function POST(req: Request) {
     const currentValue = fundamentals?.currentPrice != null
       ? pos.shares * fundamentals.currentPrice
       : null;
+
+    // Convert cost basis to the stock's price currency for an apples-to-apples comparison
+    const priceCurrency = fundamentals?.priceCurrency ?? "USD";
+    const costBasisInPriceCurrency = convertCostBasis(pos.costBasis, pos.currency, priceCurrency, eurUsdRate);
     const gainLoss = fundamentals?.currentPrice != null
-      ? (fundamentals.currentPrice - pos.costBasis) * pos.shares
+      ? (fundamentals.currentPrice - costBasisInPriceCurrency) * pos.shares
       : null;
-    const gainLossPct = fundamentals?.currentPrice != null && pos.costBasis > 0
-      ? (fundamentals.currentPrice - pos.costBasis) / pos.costBasis
+    const gainLossPct = fundamentals?.currentPrice != null && costBasisInPriceCurrency > 0
+      ? (fundamentals.currentPrice - costBasisInPriceCurrency) / costBasisInPriceCurrency
+      : null;
+
+    const altmanZScore = fundamentals
+      ? computeAltmanZ({
+          totalCurrentAssets: fundamentals.totalCurrentAssets,
+          totalCurrentLiabilities: fundamentals.totalCurrentLiabilities,
+          totalAssets: fundamentals.totalAssets,
+          retainedEarnings: fundamentals.retainedEarnings,
+          ebit: fundamentals.ebit,
+          marketCap: fundamentals.marketCap,
+          totalLiabilities: fundamentals.totalLiabilities,
+          revenue: fundamentals.revenue,
+        })
+      : null;
+
+    const ncavPerShare = fundamentals
+      ? computeNCAVPerShare({
+          totalCurrentAssets: fundamentals.totalCurrentAssets,
+          totalLiabilities: fundamentals.totalLiabilities,
+          sharesOutstanding: fundamentals.sharesOutstanding,
+        })
       : null;
 
     const dbPosition = await prisma.portfolioPosition.create({
@@ -131,6 +278,8 @@ export async function POST(req: Request) {
         ticker: pos.ticker,
         shares: pos.shares,
         costBasis: pos.costBasis,
+        currency: pos.currency,
+        priceCurrency: fundamentals?.priceCurrency ?? null,
         companyName: fundamentals?.companyName ?? null,
         sector: fundamentals?.sector ?? null,
         industry: fundamentals?.industry ?? null,
@@ -149,61 +298,43 @@ export async function POST(req: Request) {
         currentValue,
         gainLoss,
         gainLossPct,
+        returnOnEquity: fundamentals?.returnOnEquity ?? null,
+        returnOnAssets: fundamentals?.returnOnAssets ?? null,
+        grossMargins: fundamentals?.grossMargins ?? null,
+        operatingMargins: fundamentals?.operatingMargins ?? null,
+        revenueGrowth: fundamentals?.revenueGrowth ?? null,
+        earningsGrowth: fundamentals?.earningsGrowth ?? null,
+        freeCashflow: fundamentals?.freeCashflow ?? null,
+        operatingCashflow: fundamentals?.operatingCashflow ?? null,
+        totalDebt: fundamentals?.totalDebt ?? null,
+        totalCash: fundamentals?.totalCash ?? null,
+        sharesOutstanding: fundamentals?.sharesOutstanding ?? null,
+        forwardEPS: fundamentals?.forwardEPS ?? null,
+        totalCurrentAssets: fundamentals?.totalCurrentAssets ?? null,
+        totalCurrentLiabilities: fundamentals?.totalCurrentLiabilities ?? null,
+        totalAssets: fundamentals?.totalAssets ?? null,
+        totalLiabilities: fundamentals?.totalLiabilities ?? null,
+        retainedEarnings: fundamentals?.retainedEarnings ?? null,
+        ebit: fundamentals?.ebit ?? null,
+        revenue: fundamentals?.revenue ?? null,
+        epsHistory: fundamentals?.epsHistory.length ? JSON.stringify(fundamentals.epsHistory) : null,
+        altmanZScore,
+        ncavPerShare,
         fetchedAt: fundamentals ? new Date() : null,
         fetchError,
       },
     });
 
-    enrichedPositions.push({
-      id: dbPosition.id,
-      sessionId: session.id,
-      ticker: pos.ticker,
-      shares: pos.shares,
-      costBasis: pos.costBasis,
-      companyName: fundamentals?.companyName ?? null,
-      sector: fundamentals?.sector ?? null,
-      industry: fundamentals?.industry ?? null,
-      currentPrice: fundamentals?.currentPrice ?? null,
-      trailingEPS: fundamentals?.trailingEPS ?? null,
-      bookValuePerShare: fundamentals?.bookValuePerShare ?? null,
-      peRatio: fundamentals?.peRatio ?? null,
-      pbRatio: fundamentals?.pbRatio ?? null,
-      deRatio: fundamentals?.deRatio ?? null,
-      currentRatio: fundamentals?.currentRatio ?? null,
-      dividendYield: fundamentals?.dividendYield ?? null,
-      marketCap: fundamentals?.marketCap ?? null,
-      nextEarningsDate: fundamentals?.nextEarningsDate?.toISOString() ?? null,
-      grahamNumber,
-      marginOfSafety,
-      currentValue,
-      gainLoss,
-      gainLossPct,
-      fetchedAt: fundamentals ? new Date().toISOString() : null,
-      fetchError,
-    });
+    enrichedPositions.push(dbPositionToEnriched(dbPosition));
   }
 
-  // Compute portfolio summary
-  const totalValue = enrichedPositions.reduce((s, p) => s + (p.currentValue ?? 0), 0);
-  const totalCostBasis = enrichedPositions.reduce((s, p) => s + p.costBasis * p.shares, 0);
+  // All totals in EUR for a consistent base currency
+  const totalValue = enrichedPositions.reduce((s, p) => s + toEur(p.currentValue ?? 0, p.priceCurrency ?? "USD", eurUsdRate), 0);
+  const totalCostBasis = enrichedPositions.reduce((s, p) => s + toEur(p.costBasis * p.shares, p.currency, eurUsdRate), 0);
   const totalGainLoss = totalValue - totalCostBasis;
   const totalGainLossPct = totalCostBasis > 0 ? totalGainLoss / totalCostBasis : 0;
-
-  const mosValues = enrichedPositions
-    .map((p) => p.marginOfSafety)
-    .filter((v): v is number => v !== null);
-  const averageMarginOfSafety =
-    mosValues.length > 0
-      ? mosValues.reduce((a, b) => a + b, 0) / mosValues.length
-      : null;
-
-  const undervaluedCount = enrichedPositions.filter(
-    (p) => p.marginOfSafety !== null && p.marginOfSafety >= 0
-  ).length;
-  const overvaluedCount = enrichedPositions.filter(
-    (p) => p.marginOfSafety !== null && p.marginOfSafety < 0
-  ).length;
-  const naCount = enrichedPositions.filter((p) => p.marginOfSafety === null).length;
+  const mosValues = enrichedPositions.map((p) => p.marginOfSafety).filter((v): v is number => v !== null);
+  const averageMarginOfSafety = mosValues.length > 0 ? mosValues.reduce((a, b) => a + b, 0) / mosValues.length : null;
 
   const response: PortfolioAnalyzeResponse = {
     sessionId: session.id,
@@ -214,12 +345,17 @@ export async function POST(req: Request) {
       totalGainLoss,
       totalGainLossPct,
       averageMarginOfSafety,
-      undervaluedCount,
-      overvaluedCount,
-      naCount,
+      undervaluedCount: enrichedPositions.filter((p) => p.marginOfSafety !== null && p.marginOfSafety >= 0).length,
+      overvaluedCount: enrichedPositions.filter((p) => p.marginOfSafety !== null && p.marginOfSafety < 0).length,
+      naCount: enrichedPositions.filter((p) => p.marginOfSafety === null).length,
       fetchErrors,
+      eurUsdRate,
     },
   };
 
   return NextResponse.json(response);
+  } catch (err) {
+    console.error("[POST /api/portfolio/analyze] fatal:", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }
