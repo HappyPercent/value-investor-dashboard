@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
     "seed": "tsx scripts/seed-universe.ts --index=ALL",
     "seed:sp500": "tsx scripts/seed-universe.ts --index=SP500",
     "seed:russell": "tsx scripts/seed-universe.ts --index=RUSSELL2000",
@@ -43,6 +44,7 @@
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

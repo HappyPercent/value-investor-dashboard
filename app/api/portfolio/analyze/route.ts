@@ -184,7 +184,7 @@ export async function GET(req: Request) {
     eurUsdRate,
   };
 
-  return NextResponse.json({ sessionId, positions, summary } satisfies PortfolioAnalyzeResponse);
+  return NextResponse.json({ sessionId: session.id, positions, summary } satisfies PortfolioAnalyzeResponse);
 }
 
 // ── POST /api/portfolio/analyze ───────────────────────────────────────────────

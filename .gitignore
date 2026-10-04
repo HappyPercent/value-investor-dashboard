@@ -48,3 +48,9 @@ next-env.d.ts
 
 .playwright-mcp/
 .claude/
+# local env (secrets, DB path)
+.env
+
+# SQLite files
+*.db
+*.db-journal

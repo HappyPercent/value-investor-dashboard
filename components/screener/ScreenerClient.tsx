@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FilterPanel } from "@/components/screener/FilterPanel";
 import { ScreenerTable, SortKey } from "@/components/screener/ScreenerTable";
 import { SeedProgressModal } from "@/components/screener/SeedProgressModal";
-import type { ScreenerFilters, ScreenerResult, ScreenerResultsResponse, SeedOptions } from "@/types/screener";
+import type { ScreenerFilters, ScreenerResultsResponse, SeedOptions } from "@/types/screener";
 
 interface Props {
   initialData: ScreenerResultsResponse;

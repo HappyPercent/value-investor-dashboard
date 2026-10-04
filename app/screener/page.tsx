@@ -1,6 +1,9 @@
 import { queryScreener } from "@/lib/screener-query";
 import { ScreenerClient } from "@/components/screener/ScreenerClient";
 
+// Reads the local SQLite cache on every request, so never prerender at build time.
+export const dynamic = "force-dynamic";
+
 export default async function ScreenerPage() {
   const initialData = await queryScreener();
 

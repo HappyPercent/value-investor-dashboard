@@ -37,6 +37,8 @@ export async function POST(req: Request) {
       ticker: p.ticker,
       shares: p.shares,
       costBasis: p.costBasis,
+      currency: p.currency,
+      priceCurrency: p.priceCurrency,
       companyName: p.companyName,
       sector: p.sector,
       industry: p.industry,
